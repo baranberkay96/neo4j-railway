@@ -1,5 +1,7 @@
 # Deploy and Host Neo4j with Railway
 
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/neo4j-526-lts-community?referralCode=20H68q)
+
 Neo4j is a native graph database: data is stored as nodes and relationships and queried with Cypher. This community template runs Neo4j 5.26 LTS Community Edition with the APOC library, Neo4j Browser on your HTTPS domain, Bolt for drivers through a Railway TCP proxy, a generated password, and a daily backup job that writes to a Railway Bucket.
 
 ## About Hosting Neo4j
