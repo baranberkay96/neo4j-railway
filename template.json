@@ -73,12 +73,12 @@
           "description": "TLS on Bolt with a self-signed certificate: disabled, optional (default) or required.",
           "required": false
         },
-        "HEAP_SIZE": {
+        "MEMORY_HEAP": {
           "defaultValue": "auto",
           "description": "JVM heap, e.g. 1g or 4g. auto = 30% of the memory limit, 256m-1g.",
           "required": false
         },
-        "PAGECACHE_SIZE": {
+        "MEMORY_PAGECACHE": {
           "defaultValue": "auto",
           "description": "Page cache for graph data, e.g. 1g or 8g. auto = 20% of the memory limit, 128m-1g.",
           "required": false

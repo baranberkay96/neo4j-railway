@@ -8,8 +8,8 @@
 #
 #   DB_PASSWORD            password of the 'neo4j' user (initial password; see the extension script)
 #   DB_PASSWORD_RESET      true = set the password of 'neo4j' to DB_PASSWORD on this boot
-#   HEAP_SIZE              JVM heap, e.g. 512m or 2g; auto = sized from the memory limit
-#   PAGECACHE_SIZE         page cache, e.g. 512m or 2g; auto = sized from the memory limit
+#   MEMORY_HEAP            JVM heap (not HEAP_SIZE: Neo4j's own launcher reads that name), e.g. 512m or 2g; auto = sized from the memory limit
+#   MEMORY_PAGECACHE         page cache, e.g. 512m or 2g; auto = sized from the memory limit
 #   BOLT_ADVERTISED_ADDRESS  host:port drivers are told to use (the Railway TCP proxy)
 #   BOLT_TLS               disabled | optional | required (TLS on Bolt with a self-signed certificate)
 #   PLUGINS                JSON list of Neo4j plugins, e.g. ["apoc"]
@@ -47,11 +47,11 @@ configure_memory() {
   local mem heap cache heap_auto cache_auto
   mem="$(limit_mib)"
   # Small instances: ~30% heap and ~20% page cache leave room for the JVM's own memory,
-  # Caddy and the OS. Large limits are capped; raise HEAP_SIZE/PAGECACHE_SIZE for big graphs.
+  # Caddy and the OS. Large limits are capped; raise MEMORY_HEAP/MEMORY_PAGECACHE for big graphs.
   heap_auto="$(clamp $((mem * 30 / 100)) 256 1024)m"
   cache_auto="$(clamp $((mem * 20 / 100)) 128 1024)m"
-  heap="$(size_or_auto HEAP_SIZE "${HEAP_SIZE:-auto}")"
-  cache="$(size_or_auto PAGECACHE_SIZE "${PAGECACHE_SIZE:-auto}")"
+  heap="$(size_or_auto MEMORY_HEAP "${MEMORY_HEAP:-auto}")"
+  cache="$(size_or_auto MEMORY_PAGECACHE "${MEMORY_PAGECACHE:-auto}")"
   [ "${heap}" = auto ] && heap="${heap_auto}"
   [ "${cache}" = auto ] && cache="${cache_auto}"
   export NEO4J_server_memory_heap_initial__size="${heap}"
@@ -126,9 +126,13 @@ configure_plugins() {
        'type == "array" and length > 0 and all(.[]; type == "string" and (. as $p | $known | index($p)))' >/dev/null 2>&1; then
     export NEO4J_PLUGINS="${plugins}"
     log "plugins: ${plugins}"
+    if echo "${plugins}" | jq -e 'index("apoc")' >/dev/null && [ -z "${NEO4J_dbms_security_procedures_unrestricted:-}" ]; then
+      export NEO4J_dbms_security_procedures_unrestricted="apoc.*"
+    fi
   else
     log "WARNING: PLUGINS='${plugins}' is not a JSON list of known plugins (${known}); using [\"apoc\"]."
     export NEO4J_PLUGINS='["apoc"]'
+    [ -z "${NEO4J_dbms_security_procedures_unrestricted:-}" ] && export NEO4J_dbms_security_procedures_unrestricted="apoc.*"
   fi
 }
 
@@ -149,6 +153,9 @@ main() {
   [[ "${PORT:-}" =~ ^[0-9]{2,5}$ ]] && [ "${PORT}" != 7474 ] && [ "${PORT}" != 7687 ] || { log "WARNING: PORT='${PORT:-}' unusable; using 8080."; export PORT=8080; }
   # A leftover NEO4J_AUTH would bypass our password handling (and '/' in it stops the image).
   unset NEO4J_AUTH NEO4J_AUTH_PATH
+  # Neo4j's launcher reads HEAP_SIZE itself (as -Xms/-Xmx); memory comes from MEMORY_HEAP only.
+  unset HEAP_SIZE
+  export TINI_SUBREAPER=1
   mkdir -p /data
 
   configure_memory
