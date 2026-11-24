@@ -1,0 +1,31 @@
+# Public entry point on PORT (Railway's HTTPS domain targets it).
+#   - WebSocket upgrades go to Bolt (Neo4j Browser and JavaScript drivers use wss:// on 443).
+#   - A browser opening / is sent to Neo4j Browser with the right connect URL prefilled.
+#   - Everything else (Browser files, discovery JSON, HTTP API) goes to Neo4j's HTTP port.
+{
+	admin off
+	auto_https off
+	persist_config off
+	log {
+		level WARN
+	}
+}
+
+:{$PORT:8080} {
+	@bolt header_regexp Upgrade (?i)^websocket$
+	handle @bolt {
+		reverse_proxy 127.0.0.1:7687
+	}
+
+	@root_html {
+		path /
+		header Accept *text/html*
+	}
+	handle @root_html {
+		redir * /browser/?connectURL=bolt%2Bs%3A%2F%2F{host}%3A443 302
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:7474
+	}
+}

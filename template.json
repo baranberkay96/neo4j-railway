@@ -1,0 +1,212 @@
+{
+  "name": "Neo4j 5.26 LTS Community",
+  "description": "Graph database with Browser over HTTPS, Bolt via TCP proxy, daily backups",
+  "category": "Storage",
+  "tags": [
+    "neo4j",
+    "graph-database",
+    "cypher",
+    "apoc",
+    "knowledge-graph",
+    "graphrag",
+    "database",
+    "backup"
+  ],
+  "image": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/neo4j.svg",
+  "upstream": {
+    "neo4j": "neo4j:5.26.34-community-trixie@sha256:2c48628bc28c68d7e2787f76262dfc9d7c21a8f7f290e30da901c489aa7fe50d (Neo4j 5.26.34 LTS Community, Docker Official Image, 2026-11-24)",
+    "caddy": "caddy:2.11.9-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0",
+    "rclone": "rclone/rclone:1.76.0@sha256:7cbeec24a44f206067597c0368be4de90ae19a64d5113c7d1938bd737a81e466",
+    "license": "Neo4j Community Edition: GPL-3.0; APOC core: Apache-2.0",
+    "checked": "2026-11-24"
+  },
+  "services": {
+    "Neo4j": {
+      "icon": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/neo4j.svg",
+      "source": {
+        "repo": "baranberkay96/neo4j-railway",
+        "rootDirectory": "/services/neo4j"
+      },
+      "startCommand": null,
+      "preDeployCommand": null,
+      "healthcheckPath": "/",
+      "healthcheckTimeout": 600,
+      "restartPolicyType": "ALWAYS",
+      "numReplicas": 1,
+      "cronSchedule": null,
+      "publicDomain": true,
+      "targetPort": 8080,
+      "tcpProxy": {
+        "port": 7687
+      },
+      "volume": {
+        "mountPath": "/data"
+      },
+      "variables": {
+        "PORT": {
+          "defaultValue": "8080",
+          "description": "Port of the HTTPS entry point (Caddy: Neo4j Browser, HTTP API and Bolt over WebSocket).",
+          "required": true
+        },
+        "DB_USER": {
+          "defaultValue": "neo4j",
+          "description": "Database user (Neo4j's built-in admin user; informational, referenced by the backup job).",
+          "required": true
+        },
+        "DB_PASSWORD": {
+          "defaultValue": "${{secret(32, \"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789\")}}",
+          "description": "Password of the neo4j user (min. 8 characters). Set on the first boot; later only with DB_PASSWORD_RESET=true.",
+          "required": true
+        },
+        "DB_PASSWORD_RESET": {
+          "defaultValue": "false",
+          "description": "true = set the neo4j user's password to DB_PASSWORD on the next boot (recovery). Set back to false afterwards.",
+          "required": false
+        },
+        "BOLT_ADVERTISED_ADDRESS": {
+          "defaultValue": "${{RAILWAY_TCP_PROXY_DOMAIN}}:${{RAILWAY_TCP_PROXY_PORT}}",
+          "description": "host:port drivers are told to use (the Railway TCP proxy to Bolt).",
+          "required": false
+        },
+        "BOLT_TLS": {
+          "defaultValue": "optional",
+          "description": "TLS on Bolt with a self-signed certificate: disabled, optional (default) or required.",
+          "required": false
+        },
+        "HEAP_SIZE": {
+          "defaultValue": "auto",
+          "description": "JVM heap, e.g. 1g or 4g. auto = 30% of the memory limit, 256m-1g.",
+          "required": false
+        },
+        "PAGECACHE_SIZE": {
+          "defaultValue": "auto",
+          "description": "Page cache for graph data, e.g. 1g or 8g. auto = 20% of the memory limit, 128m-1g.",
+          "required": false
+        },
+        "PLUGINS": {
+          "defaultValue": "[\"apoc\"]",
+          "description": "JSON list of Neo4j plugins (APOC is bundled; others such as graph-data-science are downloaded at boot).",
+          "required": false
+        },
+        "RAILWAY_DEPLOYMENT_DRAINING_SECONDS": {
+          "defaultValue": "60",
+          "description": "Seconds Neo4j gets to shut down cleanly on redeploy.",
+          "required": false
+        }
+      }
+    },
+    "Neo4j Backup": {
+      "icon": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/rclone.svg",
+      "source": {
+        "repo": "baranberkay96/neo4j-railway",
+        "rootDirectory": "/services/backup"
+      },
+      "startCommand": null,
+      "preDeployCommand": null,
+      "healthcheckPath": null,
+      "healthcheckTimeout": null,
+      "restartPolicyType": "NEVER",
+      "numReplicas": 1,
+      "cronSchedule": "30 3 * * *",
+      "publicDomain": false,
+      "targetPort": null,
+      "tcpProxy": null,
+      "volume": null,
+      "variables": {
+        "DB_HOST": {
+          "defaultValue": "${{Neo4j.RAILWAY_PRIVATE_DOMAIN}}",
+          "description": "Neo4j private hostname.",
+          "required": true
+        },
+        "DB_HTTP_PORT": {
+          "defaultValue": "7474",
+          "description": "Neo4j HTTP API port on the private network (export).",
+          "required": true
+        },
+        "DB_BOLT_PORT": {
+          "defaultValue": "7687",
+          "description": "Neo4j Bolt port on the private network (restore).",
+          "required": true
+        },
+        "DB_NAME": {
+          "defaultValue": "neo4j",
+          "description": "Database to back up and restore.",
+          "required": true
+        },
+        "DB_USER": {
+          "defaultValue": "${{Neo4j.DB_USER}}",
+          "description": "User for backups (kept in sync by reference).",
+          "required": true
+        },
+        "DB_PASSWORD": {
+          "defaultValue": "${{Neo4j.DB_PASSWORD}}",
+          "description": "Password of that user (kept in sync by reference).",
+          "required": true
+        },
+        "BACKUP_S3_BUCKET": {
+          "defaultValue": "${{Bucket.BUCKET}}",
+          "description": "Railway Bucket that stores the backups.",
+          "required": true
+        },
+        "BACKUP_S3_ENDPOINT": {
+          "defaultValue": "${{Bucket.ENDPOINT}}",
+          "description": "Bucket S3 endpoint.",
+          "required": true
+        },
+        "BACKUP_S3_REGION": {
+          "defaultValue": "${{Bucket.REGION}}",
+          "description": "Bucket region.",
+          "required": true
+        },
+        "BACKUP_S3_ACCESS_KEY_ID": {
+          "defaultValue": "${{Bucket.ACCESS_KEY_ID}}",
+          "description": "Bucket access key.",
+          "required": true
+        },
+        "BACKUP_S3_SECRET_ACCESS_KEY": {
+          "defaultValue": "${{Bucket.SECRET_ACCESS_KEY}}",
+          "description": "Bucket secret key.",
+          "required": true
+        },
+        "BACKUP_S3_FORCE_PATH_STYLE": {
+          "defaultValue": "false",
+          "description": "Keep false: Railway Buckets use virtual-hosted-style URLs.",
+          "required": false
+        },
+        "BACKUP_PREFIX": {
+          "defaultValue": "neo4j",
+          "description": "Folder in the bucket; each run writes {prefix}/{UTC timestamp}/.",
+          "required": false
+        },
+        "BACKUP_RETENTION_DAYS": {
+          "defaultValue": "14",
+          "description": "Delete complete runs older than this many days.",
+          "required": false
+        },
+        "BACKUP_KEEP_MIN": {
+          "defaultValue": "3",
+          "description": "Always keep at least this many complete runs, whatever their age.",
+          "required": false
+        },
+        "BACKUP_ZSTD_LEVEL": {
+          "defaultValue": "6",
+          "description": "zstd level 1 (fast) to 19 (small).",
+          "required": false
+        },
+        "BACKUP_WAIT_SECONDS": {
+          "defaultValue": "300",
+          "description": "How long a run waits for Neo4j before failing.",
+          "required": false
+        },
+        "RESTORE_RUN": {
+          "defaultValue": "latest",
+          "description": "Restore only (start command /usr/local/bin/neo4j-backup restore): run folder, or latest. Loads only into an empty database.",
+          "required": false
+        }
+      }
+    }
+  },
+  "buckets": [
+    "Bucket"
+  ]
+}
